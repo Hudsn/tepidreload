@@ -1,0 +1,39 @@
+const requestPath = "{{.Path}}"
+const interval = {{.Interval}}
+
+let toClear
+window.addEventListener('load', function () {
+    toClear = setInterval(maybeReload, interval)
+    console.log("ASDASDASD")
+})
+
+async function fetchIsChanged() {
+    let response
+    try {
+        response = await fetch(requestPath);
+    } 
+    catch (error) {
+        return false
+    }
+    let txt = await response.text()
+    return txt
+}
+
+async function shouldReload() {
+    asText = await fetchIsChanged()
+    if (asText === "true"){
+        console.log("?????")
+        return true
+    } else {
+        return false
+    }
+}
+
+async function maybeReload() {
+    console.log(await shouldReload())
+    if (await shouldReload() === true) {
+        console.log("RELOAD")
+        clearInterval(toClear)
+        location.reload()
+    }
+}
