@@ -1,2 +1,2 @@
 # tepidreload
-Browser reloading
+Not-so-hot browser reloading
