@@ -5,18 +5,50 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"strings"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/hudsn/tepidreload"
 )
 
 func main() {
-
+	portNum := flag.String("port", "3000", "port number for the reloader to serve your files on")
+	watchIntevalMS := flag.Int("interval", 250, "how many MS to wait between checking for updates")
+	excludeExt := flag.String("exclude-ext", "", "comma-delimited list of file extensions to exclude")
+	excludeDir := flag.String("exclude-dir", "", "comma-delimited list of directories to exclude")
+	excludeFiles := flag.String("exclude-files", "", "comma-delimited list of specific files to exclude")
 	watchPath := flag.String("path", "./", "relative path to directory to monitor for reloads")
 	flag.Parse()
 
-	tepidConfig := tepidreload.NewConfig(tepidreload.WithWatchPath(*watchPath))
+	// convert exclusion opts into slices so we can pass to configs
+	exDirList := strings.Split(*excludeDir, ",")
+	trimmedDirList := []string{}
+	for _, entry := range exDirList {
+		trimmed := strings.TrimSpace(entry)
+		trimmedDirList = append(trimmedDirList, trimmed)
+	}
+	exExtList := strings.Split(*excludeExt, ",")
+	trimmedExtList := []string{}
+	for _, entry := range exExtList {
+		trimmed := strings.TrimSpace(entry)
+		trimmedExtList = append(trimmedDirList, trimmed)
+	}
+	exFileList := strings.Split(*excludeFiles, ",")
+	trimmedFileList := []string{}
+	for _, entry := range exFileList {
+		trimmed := strings.TrimSpace(entry)
+		trimmedExtList = append(trimmedFileList, trimmed)
+	}
 
+	tepidConfig := tepidreload.NewConfig(
+		tepidreload.WithWatchPath(*watchPath),
+		tepidreload.WithExcludeDirs(trimmedDirList...),
+		tepidreload.WithExcludeExtensions(trimmedExtList...),
+		tepidreload.WithExcludeFiles(trimmedFileList...),
+		tepidreload.WithInterval(*watchIntevalMS),
+	)
+
+	// Init endpoints for serving script and polling FS
 	script, checker := tepidreload.MakeHandlers("/tepid", tepidConfig)
 
 	r := chi.NewRouter()
@@ -31,9 +63,9 @@ func main() {
 	r.Get("/tepidstatic/*", staticHandler)
 	r.Get("/*", tepidreload.IframeHandler())
 
-	fmt.Println("Starting the server on :3000")
+	fmt.Printf("Starting the reload server on :%s\n", *portNum)
 	fmt.Println("Serving files from ", *watchPath)
-	http.ListenAndServe(":3000", r)
+	http.ListenAndServe(fmt.Sprintf(":%s", *portNum), r)
 }
 
 func serveStatic(filepath string) http.HandlerFunc {

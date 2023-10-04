@@ -12,7 +12,7 @@ var (
 	WalkErr = errors.New("failed dir walk")
 )
 
-func CheckFileMods(config Config) (bool, error) {
+func checkFileMods(config Config) (bool, error) {
 	isChanged := false
 
 	timeAgo := time.Now().UTC().Add(time.Millisecond * time.Duration(config.TickIntervalMS*-1))
