@@ -49,7 +49,7 @@ func main() {
 	)
 
 	// Init endpoints for serving script and polling FS
-	script, checker := tepidreload.MakeHandlers("/tepid", tepidConfig)
+	script, checker := tepidreload.MakeHandlers("/tepid", *portNum, tepidConfig)
 
 	r := chi.NewRouter()
 

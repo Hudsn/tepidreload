@@ -25,7 +25,7 @@ type config struct {
 // An example of how you might use the package in a Go project
 func main() {
 	app := MyApp{}
-
+	lport := flag.String("port", "9001", "listen port for app")
 	flag.BoolVar(&app.Config.isDev, "dev", true, "whether it's a dev environment")
 	flag.Parse()
 
@@ -43,7 +43,7 @@ func main() {
 
 	// specify the endpoint that we'll use to check for reloads. We only need this value because it'll be dynamically added to the polling script.
 	// we get back two handler funcs to pass to any router that's compatible with net/http package
-	scriptHandler, checkHandler := tepidreload.MakeHandlers("/tepid", tepidConfig)
+	scriptHandler, checkHandler := tepidreload.MakeHandlers("/tepid", *lport, tepidConfig)
 
 	app.Router = chi.NewRouter()
 
