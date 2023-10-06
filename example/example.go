@@ -134,8 +134,8 @@ func (a *MyApp) render(w http.ResponseWriter, templateName string, data any) {
 	// normal prod rendering from template cache:
 	err := a.Config.templates.ExecuteTemplate(wbuf, templateName, data)
 	if err != nil {
-		fmt.Println(err)
-
+		fmt.Println("Failed to execute template")
+		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 	}
 	wbuf.WriteTo(w)
 	return
@@ -145,8 +145,6 @@ func (a *MyApp) render(w http.ResponseWriter, templateName string, data any) {
 // generate a map of template names -> pathnames for easier referencing
 func (a *MyApp) generateLocalTemplateMap(templateRootDir string, templateExtension string) {
 	retMap := make(map[string]string)
-
-	fmt.Println(templateRootDir, templateExtension)
 	filepath.Walk(templateRootDir, func(path string, info fs.FileInfo, err error) error {
 		if info.IsDir() {
 			return nil
