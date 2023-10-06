@@ -1,7 +1,9 @@
 package tepidreload
 
 import (
+	"bytes"
 	"embed"
+	"encoding/json"
 	"html/template"
 	"log"
 	"net/http"
@@ -34,6 +36,7 @@ func MakeHandlers(checkPath string, listenPort string, config Config) (http.Hand
 	}
 
 	socketHandler := func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Del("Content-Type")
 		ws, err := upgrader.Upgrade(w, r, nil)
 		if err != nil {
 			if _, ok := err.(websocket.HandshakeError); !ok {
@@ -49,7 +52,15 @@ func MakeHandlers(checkPath string, listenPort string, config Config) (http.Hand
 
 	scriptHandler := func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/javascript")
-		t.ExecuteTemplate(w, "script.tmpl", data)
+		wbuf := bytes.NewBuffer([]byte{})
+		err := t.ExecuteTemplate(wbuf, "script.tmpl", data)
+		if err != nil {
+			http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+			return
+		}
+
+		wbuf.WriteTo(w)
+		return
 	}
 
 	return scriptHandler, socketHandler
@@ -81,6 +92,11 @@ var upgrader = websocket.Upgrader{
 }
 
 func makeWritefunc(config Config) func(*websocket.Conn) {
+
+	type retStruct struct {
+		Reload bool `json:"reload"`
+	}
+
 	return func(ws *websocket.Conn) {
 		fileTicker := time.NewTicker(time.Millisecond * time.Duration(config.TickIntervalMS))
 		defer func() {
@@ -92,8 +108,16 @@ func makeWritefunc(config Config) func(*websocket.Conn) {
 			select {
 			case <-fileTicker.C:
 				isChanged, _ := checkFileMods(config)
+				retVal := retStruct{
+					Reload: isChanged,
+				}
 				if isChanged {
-					if err := ws.WriteMessage(websocket.TextMessage, []byte("true")); err != nil {
+					writeBytes, err := json.Marshal(retVal)
+					if err != nil {
+						return
+					}
+
+					if err := ws.WriteMessage(websocket.TextMessage, writeBytes); err != nil {
 						return
 					}
 				}

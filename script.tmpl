@@ -1,8 +1,7 @@
-
-initWS()
-
+initWS(null)
 
 function initWS(){
+    
     let wsurl = "ws://localhost:{{.Port}}" + "{{.Path}}"
     conn = new WebSocket(wsurl)
 
@@ -14,11 +13,13 @@ function initWS(){
         console.log("Lost connection to websocket. Retrying...")
         setTimeout(function() {
             initWS()
-        }, 1000)
+        }, 500)
     }
 
     conn.onmessage = function(evt) {
-        if (evt.data === "true"){
+        data = JSON.parse(evt.data)
+
+        if (data.reload === true){
             location.reload()
         }
     }
@@ -28,6 +29,3 @@ function initWS(){
         conn.close()
     }
 }
-
-
-

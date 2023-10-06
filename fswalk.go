@@ -50,7 +50,6 @@ func checkFileMods(config Config) (bool, error) {
 			log.Printf("error accessing file for reload monitoring: %v", dirInfo.Name())
 			return err
 		}
-
 		if fileInfo.ModTime().UTC().After(timeAgo) {
 			isChanged = true
 			return fs.SkipAll
@@ -62,6 +61,5 @@ func checkFileMods(config Config) (bool, error) {
 	if err != nil {
 		return false, WalkErr
 	}
-
 	return isChanged, nil
 }
