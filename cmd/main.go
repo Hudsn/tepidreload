@@ -15,7 +15,7 @@ func main() {
 	portNum := flag.String("port", "3000", "port number for the reloader to serve your files on")
 	watchIntevalMS := flag.Int("interval", 250, "how many MS to wait between checking for updates")
 	excludeExt := flag.String("exclude-ext", "", "comma-delimited list of file extensions to exclude")
-	excludeDir := flag.String("exclude-dir", "", "comma-delimited list of directories to exclude")
+	excludeDir := flag.String("exclude-dir", "", "comma-delimited list of directory names to exclude")
 	excludeFiles := flag.String("exclude-files", "", "comma-delimited list of specific files to exclude")
 	watchPath := flag.String("path", "./", "relative path to directory to monitor for reloads")
 	flag.Parse()

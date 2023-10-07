@@ -6,11 +6,8 @@ import (
 	"flag"
 	"fmt"
 	"html/template"
-	"io/fs"
 	"log"
 	"net/http"
-	"path/filepath"
-	"strings"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/hudsn/tepidreload"
@@ -22,27 +19,22 @@ type MyApp struct {
 }
 
 type config struct {
-	dev       dev
-	templates *template.Template
-}
-
-type dev struct {
-	isDev            bool
-	localTemplateMap map[string]string
+	templates    *template.Template
+	devTemplates tepidreload.DevTemplates
 }
 
 // An example of how you might use the package in a Go project
 func main() {
 	app := MyApp{}
 	lport := flag.String("port", "9001", "listen port for app")
-	flag.BoolVar(&app.Config.dev.isDev, "dev", true, "whether it's a dev environment")
+	flag.BoolVar(&app.Config.devTemplates.IsDev, "dev", true, "whether it's a dev environment")
 	flag.Parse()
 
 	// generate templates based on env mode
 	// dev generates from files on the system to enable hot reload (we want to watch the tmpl files we're editing to trigger them; if we use embedded tmpl files it won't trigger reload because we're not editing those.)
-	switch app.Config.dev.isDev {
+	switch app.Config.devTemplates.IsDev {
 	case true:
-		app.generateLocalTemplateMap("example/static", "tmpl")
+		app.Config.devTemplates.MakeLocalDevTemplates("example/static", "tmpl")
 	case false:
 		tt, err := template.ParseFS(exampleFS, "static/*.tmpl")
 		if err != nil {
@@ -58,18 +50,19 @@ func main() {
 
 	// specify the endpoint that we'll use to check for reloads. We only need this value because it'll be dynamically added to the polling script.
 	// we get back two handler funcs to pass to any router that's compatible with net/http package
-	scriptHandler, checkHandler := tepidreload.MakeHandlers("/tepid", *lport, tepidConfig)
+	handlerEndpointPath := "/tepid"
+	scriptHandler, checkHandler := tepidreload.MakeHandlers(handlerEndpointPath, *lport, tepidConfig)
 
 	app.Router = chi.NewRouter()
-	if app.Config.dev.isDev {
-		// this first path can be anything you want, just make sure you reference it when you add the script tag to your HTML templates (see example.tmpl)
+	if app.Config.devTemplates.IsDev {
+		// this first path can be anything you want, just make sure you reference it when you add the script tag to your HTML templates (see static/example.tmpl)
 		app.Router.Get("/tepid.js", scriptHandler)
 		// this second handler should match the arg you passed to MakeHandlers
-		app.Router.Get("/tepid", checkHandler)
+		app.Router.Get(handlerEndpointPath, checkHandler)
 	}
 
 	// normal routes
-	// NOTE: we conditionally add the polling script and endpoint by using app.Config to read "isDev" and pass that to templates so we only have hot reload in dev (see: defaultTemplateData and how it's used in exampleHandler())
+	// NOTE: we conditionally add the polling script and endpoint by using app.Config to read "IsDev" and pass that to templates so we only have hot reload in dev (see: defaultTemplateData and how it's used in exampleHandler())
 	// Try using "go run examples/main.go -dev=false" and then check to see that the script is no longer rendered, and that /tepid returns a 404 error.
 	app.Router.Get("/", app.exampleHandler())
 
@@ -86,7 +79,7 @@ type templateData struct {
 
 func (a *MyApp) defaultTemplateData() templateData {
 	return templateData{
-		IsDev: a.Config.dev.isDev,
+		IsDev: a.Config.devTemplates.IsDev,
 	}
 }
 
@@ -104,9 +97,10 @@ func (a *MyApp) exampleHandler() http.HandlerFunc {
 func (a *MyApp) render(w http.ResponseWriter, templateName string, data any) {
 	wbuf := bytes.NewBuffer([]byte{})
 
-	if a.Config.dev.isDev {
+	// render template directly from local file if it's a dev environment
+	if a.Config.devTemplates.IsDev {
 
-		templatePath, found := a.localTemplate(templateName)
+		templatePath, found := a.Config.devTemplates.GetLocalTemplate(templateName)
 		if !found {
 			fmt.Println("Templates not found")
 			http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
@@ -131,7 +125,7 @@ func (a *MyApp) render(w http.ResponseWriter, templateName string, data any) {
 		return
 	}
 
-	// normal prod rendering from template cache:
+	// normal rendering from template cache:
 	err := a.Config.templates.ExecuteTemplate(wbuf, templateName, data)
 	if err != nil {
 		fmt.Println("Failed to execute template")
@@ -140,30 +134,4 @@ func (a *MyApp) render(w http.ResponseWriter, templateName string, data any) {
 	wbuf.WriteTo(w)
 	return
 
-}
-
-// generate a map of template names -> pathnames for easier referencing
-func (a *MyApp) generateLocalTemplateMap(templateRootDir string, templateExtension string) {
-	retMap := make(map[string]string)
-	filepath.Walk(templateRootDir, func(path string, info fs.FileInfo, err error) error {
-		if info.IsDir() {
-			return nil
-		}
-
-		if strings.HasSuffix(info.Name(), templateExtension) {
-			retMap[info.Name()] = path
-		}
-		return nil
-	})
-
-	a.Config.dev.localTemplateMap = retMap
-}
-
-func (a *MyApp) localTemplate(templateName string) (string, bool) {
-	var found bool
-	var templatePath string
-
-	templatePath, found = a.Config.dev.localTemplateMap[templateName]
-
-	return templatePath, found
 }
