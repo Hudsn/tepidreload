@@ -6,8 +6,11 @@ import (
 	"flag"
 	"fmt"
 	"html/template"
+	"io/fs"
 	"log"
 	"net/http"
+	"path/filepath"
+	"strings"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/hudsn/tepidreload"
@@ -20,7 +23,7 @@ type MyApp struct {
 
 type config struct {
 	templates    *template.Template
-	devTemplates tepidreload.DevTemplates
+	devTemplates devTemplates
 }
 
 // An example of how you might use the package in a Go project
@@ -134,4 +137,30 @@ func (a *MyApp) render(w http.ResponseWriter, templateName string, data any) {
 	wbuf.WriteTo(w)
 	return
 
+}
+
+type devTemplates struct {
+	IsDev          bool
+	DevTemplateMap map[string]string
+}
+
+func (dt *devTemplates) MakeLocalDevTemplates(templateRootDir string, templateExtension string) {
+	retMap := make(map[string]string)
+	filepath.Walk(templateRootDir, func(path string, info fs.FileInfo, err error) error {
+		if info.IsDir() {
+			return nil
+		}
+
+		if strings.HasSuffix(info.Name(), templateExtension) {
+			retMap[info.Name()] = path
+		}
+		return nil
+	})
+
+	dt.DevTemplateMap = retMap
+}
+
+func (dt *devTemplates) GetLocalTemplate(templateName string) (string, bool) {
+	path, found := dt.DevTemplateMap[templateName]
+	return path, found
 }
